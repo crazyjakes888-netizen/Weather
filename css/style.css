@@ -1,30 +1,18 @@
 /* ============================================
-   Weather — base stylesheet
+   Weather — Grok-inspired dark theme
+   Pure black background with an animated
+   starfield behind translucent panels.
    ============================================ */
 
 :root {
-  --bg: #eef4fb;
-  --card-bg: #ffffff;
-  --text: #1c2733;
-  --text-muted: #5c6b7c;
-  --accent: #2f7fd1;
-  --accent-soft: #dcebfa;
-  --border: #d8e2ee;
-  --shadow: 0 2px 12px rgba(28, 39, 51, 0.08);
-  --radius: 14px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #10161f;
-    --card-bg: #1a2330;
-    --text: #e8eef5;
-    --text-muted: #9aaabb;
-    --accent: #5da5e8;
-    --accent-soft: #223349;
-    --border: #2b3a4d;
-    --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
-  }
+  --bg: #000000;
+  --card-bg: rgba(255, 255, 255, 0.04);
+  --card-hover: rgba(255, 255, 255, 0.08);
+  --text: #f2f2f2;
+  --text-muted: #8a8f98;
+  --accent: #9cc2ff;
+  --border: rgba(255, 255, 255, 0.1);
+  --radius: 16px;
 }
 
 * {
@@ -41,10 +29,21 @@ body {
   min-height: 100vh;
 }
 
+/* ---------- Starfield canvas ---------- */
+
+#stars {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .app {
+  position: relative;
+  z-index: 1;
   max-width: 760px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 2rem;
+  padding: 1.5rem 1rem 2rem;
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
@@ -60,7 +59,9 @@ body {
 }
 
 .logo {
-  font-size: 1.4rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
@@ -73,34 +74,43 @@ body {
 
 .search__input {
   flex: 1;
-  padding: 0.55rem 0.9rem;
+  padding: 0.6rem 1rem;
   font-size: 1rem;
   color: var(--text);
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 999px;
   outline: none;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.search__input::placeholder {
+  color: var(--text-muted);
 }
 
 .search__input:focus {
-  border-color: var(--accent);
+  border-color: rgba(255, 255, 255, 0.35);
+  background: var(--card-hover);
 }
 
 .search__button,
 .unit-toggle {
-  padding: 0.55rem 0.8rem;
+  padding: 0.6rem 0.85rem;
   font-size: 1rem;
   color: var(--text);
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 999px;
   cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 
 .search__button:hover,
 .unit-toggle:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--card-hover);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .search__results {
@@ -110,10 +120,11 @@ body {
   right: 0;
   z-index: 10;
   list-style: none;
-  background: var(--card-bg);
+  background: rgba(10, 10, 12, 0.92);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
   overflow: hidden;
 }
 
@@ -124,7 +135,7 @@ body {
 
 .search__results li:hover,
 .search__results li:focus {
-  background: var(--accent-soft);
+  background: var(--card-hover);
 }
 
 /* ---------- Cards ---------- */
@@ -139,13 +150,15 @@ body {
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
   padding: 1.25rem;
+  backdrop-filter: blur(8px);
 }
 
 .card__title {
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
 }
@@ -166,6 +179,7 @@ body {
 
 .current__location {
   font-size: 1.35rem;
+  font-weight: 600;
 }
 
 .current__date {
@@ -186,12 +200,14 @@ body {
 }
 
 .current__temp {
-  font-size: 3.5rem;
+  font-size: 3.75rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .current__desc {
   font-weight: 600;
+  color: var(--text);
 }
 
 .current__meta {
@@ -222,6 +238,8 @@ body {
   gap: 0.5rem;
   overflow-x: auto;
   padding-bottom: 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .hourly__item {
@@ -231,8 +249,9 @@ body {
   align-items: center;
   gap: 0.25rem;
   padding: 0.6rem 0.4rem;
-  border-radius: var(--radius);
-  background: var(--accent-soft);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   text-align: center;
 }
 
@@ -314,7 +333,7 @@ body {
 
 @media (max-width: 480px) {
   .current__temp {
-    font-size: 2.75rem;
+    font-size: 2.9rem;
   }
 
   .header {

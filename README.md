@@ -11,7 +11,7 @@ step, no framework, no API key required.
 - ⏰ **Hourly forecast** for the next 24 hours
 - 📅 **7-day forecast** with highs, lows, and precipitation chance
 - 🔄 **°C / °F toggle** (remembered between visits)
-- 🌙 **Dark mode** that follows your system preference
+- 🌌 **Grok-inspired dark theme** — pure black with an animated starfield and shooting-star tracers (respects reduced-motion preferences)
 - 📱 Responsive layout for mobile and desktop
 
 ## Getting started
@@ -33,8 +33,9 @@ is recommended (geolocation requires a secure context: `localhost` or HTTPS).
 Weather/
 ├── index.html      # Page markup
 ├── css/
-│   └── style.css   # Styles (light + dark theme)
+│   └── style.css   # Styles (black theme, glassy cards)
 ├── js/
+│   ├── stars.js    # Starfield + shooting-star background
 │   └── app.js      # Search, API calls, rendering
 └── README.md
 ```
