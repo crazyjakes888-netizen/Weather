@@ -1,12 +1,21 @@
 /* ============================================
-   Weather — base app logic
-   Uses the free Open-Meteo APIs (no API key needed):
-   - Geocoding: https://open-meteo.com/en/docs/geocoding-api
+   Weather — app logic
+   Two views: a starfield home page (search or
+   "use my location") and a live-updating
+   weather page for the chosen place.
+
+   APIs (all free, no key needed):
    - Forecast:  https://open-meteo.com/en/docs
+   - Geocoding: https://open-meteo.com/en/docs/geocoding-api
+   - Reverse geocoding: https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api
    ============================================ */
 
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
+const REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client";
+
+// How often the weather view re-fetches fresh data.
+const REFRESH_INTERVAL_MS = 60 * 1000;
 
 // WMO weather interpretation codes -> description + emoji icon
 const WEATHER_CODES = {
@@ -40,28 +49,33 @@ const WEATHER_CODES = {
   99: { desc: "Thunderstorm with heavy hail", icon: "⛈️" },
 };
 
-const DEFAULT_LOCATION = {
-  name: "New York",
-  admin1: "New York",
-  country: "United States",
-  latitude: 40.71,
-  longitude: -74.01,
-};
-
 // ---------- App state ----------
 
 const state = {
   unit: localStorage.getItem("weather-unit") || "celsius", // "celsius" | "fahrenheit"
   location: null,
+  lastUpdated: null,
+  refreshTimer: null,
+  agoTimer: null,
 };
 
 // ---------- DOM references ----------
 
 const el = {
+  homeView: document.getElementById("home-view"),
+  weatherView: document.getElementById("weather-view"),
+  homeForm: document.getElementById("home-form"),
+  homeInput: document.getElementById("home-input"),
+  homeResults: document.getElementById("home-results"),
+  homeLocate: document.getElementById("home-locate"),
+  homeStatus: document.getElementById("home-status"),
+  geoModal: document.getElementById("geo-modal"),
+  geoYes: document.getElementById("geo-yes"),
+  geoNo: document.getElementById("geo-no"),
+  homeButton: document.getElementById("home-button"),
   form: document.getElementById("search-form"),
   input: document.getElementById("search-input"),
   results: document.getElementById("search-results"),
-  locate: document.getElementById("locate-button"),
   unitToggle: document.getElementById("unit-toggle"),
   status: document.getElementById("status"),
   current: document.getElementById("current"),
@@ -69,6 +83,7 @@ const el = {
   daily: document.getElementById("daily"),
   currentLocation: document.getElementById("current-location"),
   currentDate: document.getElementById("current-date"),
+  liveAgo: document.getElementById("live-ago"),
   currentIcon: document.getElementById("current-icon"),
   currentTemp: document.getElementById("current-temp"),
   currentDesc: document.getElementById("current-desc"),
@@ -122,7 +137,12 @@ function formatDay(isoDate, index) {
   return new Date(isoDate + "T00:00").toLocaleDateString([], { weekday: "long" });
 }
 
-function setStatus(message) {
+function setHomeStatus(message) {
+  el.homeStatus.textContent = message || "";
+  el.homeStatus.hidden = !message;
+}
+
+function setWeatherStatus(message) {
   el.status.textContent = message || "";
   el.status.hidden = !message;
 }
@@ -131,6 +151,47 @@ function showSections(visible) {
   el.current.hidden = !visible;
   el.hourly.hidden = !visible;
   el.daily.hidden = !visible;
+}
+
+// ---------- Views ----------
+
+function showView(view) {
+  el.homeView.hidden = view !== "home";
+  el.weatherView.hidden = view !== "weather";
+}
+
+function goHome() {
+  stopLiveUpdates();
+  setHomeStatus("");
+  showView("home");
+  el.homeInput.focus();
+}
+
+// ---------- Live updates ----------
+
+function startLiveUpdates() {
+  stopLiveUpdates();
+  state.refreshTimer = setInterval(() => {
+    if (state.location) loadWeather(state.location, { silent: true });
+  }, REFRESH_INTERVAL_MS);
+  state.agoTimer = setInterval(updateAgo, 1000);
+}
+
+function stopLiveUpdates() {
+  clearInterval(state.refreshTimer);
+  clearInterval(state.agoTimer);
+  state.refreshTimer = null;
+  state.agoTimer = null;
+}
+
+function updateAgo() {
+  if (!state.lastUpdated) return;
+  const seconds = Math.floor((Date.now() - state.lastUpdated) / 1000);
+  let text;
+  if (seconds < 10) text = "just now";
+  else if (seconds < 60) text = `${seconds}s ago`;
+  else text = `${Math.floor(seconds / 60)}m ago`;
+  el.liveAgo.textContent = text;
 }
 
 // ---------- API calls ----------
@@ -145,6 +206,22 @@ async function searchCities(query) {
   const url = `${GEOCODING_URL}?name=${encodeURIComponent(query)}&count=5&language=en&format=json`;
   const data = await fetchJson(url);
   return data.results || [];
+}
+
+async function reverseGeocode(latitude, longitude) {
+  try {
+    const url = `${REVERSE_GEOCODE_URL}?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`;
+    const data = await fetchJson(url);
+    return {
+      name: data.city || data.locality || "My location",
+      admin1: data.principalSubdivision || "",
+      country: data.countryName || "",
+      latitude,
+      longitude,
+    };
+  } catch {
+    return { name: "My location", latitude, longitude };
+  }
 }
 
 async function fetchForecast(latitude, longitude) {
@@ -233,110 +310,166 @@ function renderDaily(data) {
 
 // ---------- Main flow ----------
 
-async function loadWeather(location) {
+async function loadWeather(location, { silent = false } = {}) {
   state.location = location;
-  showSections(false);
-  setStatus(`Loading weather for ${formatLocation(location)}…`);
+  if (!silent) {
+    showView("weather");
+    showSections(false);
+    setWeatherStatus(`Loading weather for ${formatLocation(location)}…`);
+  }
   try {
     const data = await fetchForecast(location.latitude, location.longitude);
     renderCurrent(data, location);
     renderHourly(data);
     renderDaily(data);
-    setStatus("");
+    state.lastUpdated = Date.now();
+    updateAgo();
+    setWeatherStatus("");
     showSections(true);
-    localStorage.setItem("weather-location", JSON.stringify(location));
+    showView("weather");
+    startLiveUpdates();
   } catch (error) {
     console.error(error);
-    setStatus("Could not load weather data. Please try again.");
+    if (!silent) {
+      setWeatherStatus("Could not load weather data. Please try again.");
+    }
+    // On a silent refresh failure, keep showing the last good data and
+    // let the next interval try again.
   }
 }
 
-function hideResults() {
-  el.results.hidden = true;
-  el.results.innerHTML = "";
-}
+// ---------- Search (shared by home + weather header) ----------
 
-function showResults(cities) {
-  el.results.innerHTML = "";
-  cities.forEach((city) => {
-    const item = document.createElement("li");
-    item.textContent = formatLocation(city);
-    item.tabIndex = 0;
-    item.addEventListener("click", () => {
-      hideResults();
-      el.input.value = "";
-      loadWeather(city);
+function setupSearch({ form, input, results }, showStatus) {
+  function hideResults() {
+    results.hidden = true;
+    results.innerHTML = "";
+  }
+
+  function showResults(cities) {
+    results.innerHTML = "";
+    cities.forEach((city) => {
+      const item = document.createElement("li");
+      item.textContent = formatLocation(city);
+      item.tabIndex = 0;
+      item.addEventListener("click", () => {
+        hideResults();
+        input.value = "";
+        loadWeather(city);
+      });
+      results.appendChild(item);
     });
-    el.results.appendChild(item);
-  });
-  el.results.hidden = cities.length === 0;
-}
-
-async function handleSearch(event) {
-  event.preventDefault();
-  const query = el.input.value.trim();
-  if (!query) return;
-  try {
-    const cities = await searchCities(query);
-    if (cities.length === 0) {
-      setStatus(`No results found for "${query}".`);
-      hideResults();
-      return;
-    }
-    if (cities.length === 1) {
-      hideResults();
-      el.input.value = "";
-      loadWeather(cities[0]);
-    } else {
-      showResults(cities);
-    }
-  } catch (error) {
-    console.error(error);
-    setStatus("City search failed. Please try again.");
+    results.hidden = cities.length === 0;
   }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+    try {
+      const cities = await searchCities(query);
+      if (cities.length === 0) {
+        showStatus(`No results found for "${query}".`);
+        hideResults();
+        return;
+      }
+      showStatus("");
+      if (cities.length === 1) {
+        hideResults();
+        input.value = "";
+        loadWeather(cities[0]);
+      } else {
+        showResults(cities);
+      }
+    } catch (error) {
+      console.error(error);
+      showStatus("City search failed. Please try again.");
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!form.contains(event.target)) hideResults();
+  });
 }
 
-function handleLocate() {
+// ---------- Geolocation ----------
+
+function requestGeolocation() {
   if (!navigator.geolocation) {
-    setStatus("Geolocation is not supported by this browser.");
+    setHomeStatus("Geolocation is not supported by this browser.");
     return;
   }
-  setStatus("Getting your location…");
+  setHomeStatus("Getting your location…");
   navigator.geolocation.getCurrentPosition(
-    (position) => {
-      loadWeather({
-        name: "My location",
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      const location = await reverseGeocode(latitude, longitude);
+      setHomeStatus("");
+      loadWeather(location);
     },
-    () => setStatus("Could not get your location. Try searching instead."),
+    () => setHomeStatus("Couldn't get your location — try searching instead."),
+    { timeout: 10000, maximumAge: 300000 },
   );
 }
+
+// ---------- Location permission modal ----------
+
+function maybeAskLocation() {
+  // Ask once per visit; a fresh visit asks again.
+  if (sessionStorage.getItem("geo-prompted")) return;
+  el.geoModal.hidden = false;
+}
+
+function closeGeoModal() {
+  sessionStorage.setItem("geo-prompted", "1");
+  el.geoModal.hidden = true;
+}
+
+// ---------- Units ----------
 
 function handleUnitToggle() {
   state.unit = state.unit === "celsius" ? "fahrenheit" : "celsius";
   localStorage.setItem("weather-unit", state.unit);
   updateUnitToggle();
-  if (state.location) loadWeather(state.location);
+  if (state.location) loadWeather(state.location, { silent: true });
 }
 
 function updateUnitToggle() {
   el.unitToggle.textContent = state.unit === "celsius" ? "°C → °F" : "°F → °C";
 }
 
+// ---------- Init ----------
+
 function init() {
-  el.form.addEventListener("submit", handleSearch);
-  el.locate.addEventListener("click", handleLocate);
+  setupSearch(
+    { form: el.homeForm, input: el.homeInput, results: el.homeResults },
+    setHomeStatus,
+  );
+  setupSearch(
+    { form: el.form, input: el.input, results: el.results },
+    setWeatherStatus,
+  );
+
+  el.homeLocate.addEventListener("click", requestGeolocation);
+  el.homeButton.addEventListener("click", goHome);
   el.unitToggle.addEventListener("click", handleUnitToggle);
-  document.addEventListener("click", (event) => {
-    if (!el.form.contains(event.target)) hideResults();
+
+  el.geoYes.addEventListener("click", () => {
+    closeGeoModal();
+    requestGeolocation();
+  });
+  el.geoNo.addEventListener("click", closeGeoModal);
+
+  // Refresh immediately when the tab becomes visible again.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && state.location && el.weatherView.hidden === false) {
+      loadWeather(state.location, { silent: true });
+    }
   });
 
   updateUnitToggle();
-
-  const saved = localStorage.getItem("weather-location");
-  loadWeather(saved ? JSON.parse(saved) : DEFAULT_LOCATION);
+  showView("home");
+  maybeAskLocation();
 }
 
 init();

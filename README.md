@@ -5,13 +5,15 @@ step, no framework, no API key required.
 
 ## Features
 
-- 🔍 **City search** with autocomplete suggestions
-- 📍 **Use my location** via browser geolocation
+- 🌌 **Grok-inspired homepage** — pure black with an animated starfield and shooting-star tracers (respects reduced-motion preferences)
+- 📍 **Asks to use your location on arrival** — say yes and it jumps straight to live weather where you are (with your real town name via reverse geocoding); say no and you stay on the homepage
+- 🔍 **Search any city in the world** with a disambiguation dropdown — from the homepage or the weather page header
+- 🔴 **Live updating** — re-fetches fresh data every 60 seconds (and instantly when you return to the tab), with a pulsing "Live · updated Xs ago" indicator
+- 🏠 **Home button** to get back to the starfield homepage and search somewhere else
 - 🌡️ **Current conditions** — temperature, feels-like, humidity, wind, precipitation, sunrise/sunset
 - ⏰ **Hourly forecast** for the next 24 hours
 - 📅 **7-day forecast** with highs, lows, and precipitation chance
 - 🔄 **°C / °F toggle** (remembered between visits)
-- 🌌 **Grok-inspired dark theme** — pure black with an animated starfield and shooting-star tracers (respects reduced-motion preferences)
 - 📱 Responsive layout for mobile and desktop
 
 ## Getting started
@@ -43,12 +45,15 @@ Weather/
 ## Data source
 
 Weather and geocoding data come from the free [Open-Meteo](https://open-meteo.com/)
-APIs:
+APIs, plus free reverse geocoding from
+[BigDataCloud](https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api)
+to turn your coordinates into a town name:
 
 - Forecast: `https://api.open-meteo.com/v1/forecast`
 - Geocoding: `https://geocoding-api.open-meteo.com/v1/search`
+- Reverse geocoding: `https://api.bigdatacloud.net/data/reverse-geocode-client`
 
-No API key or signup is required.
+No API keys or signups are required.
 
 ## Ideas for next steps
 

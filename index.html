@@ -3,29 +3,62 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="A simple weather website — current conditions, hourly and 7-day forecasts." />
+  <meta name="description" content="Live weather anywhere in the world — current conditions, hourly and 7-day forecasts." />
   <title>Weather</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛅</text></svg>" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <canvas id="stars" aria-hidden="true"></canvas>
-  <div class="app">
+
+  <!-- ============ Home view ============ -->
+  <section id="home-view" class="home">
+    <h1 class="home__logo">⛅ Weather</h1>
+    <p class="home__tagline">Live weather, anywhere on Earth</p>
+    <form id="home-form" class="search search--hero" autocomplete="off">
+      <input
+        id="home-input"
+        class="search__input"
+        type="text"
+        placeholder="Search any city in the world…"
+        aria-label="Search for a city"
+      />
+      <button type="submit" class="search__button" aria-label="Search">🔍</button>
+      <ul id="home-results" class="search__results" hidden></ul>
+    </form>
+    <button id="home-locate" class="button">📍 Use my location</button>
+    <p id="home-status" class="status" hidden></p>
+  </section>
+
+  <!-- ============ Location permission modal ============ -->
+  <div id="geo-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="geo-title">
+    <div class="modal__card">
+      <div class="modal__icon">📍</div>
+      <h2 id="geo-title">Use your location?</h2>
+      <p>See live weather for exactly where you are right now.</p>
+      <div class="modal__actions">
+        <button id="geo-yes" class="button button--primary">Yes, show my weather</button>
+        <button id="geo-no" class="button">No thanks</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ Weather view ============ -->
+  <div id="weather-view" class="app" hidden>
     <header class="header">
-      <h1 class="logo">⛅ Weather</h1>
+      <button id="home-button" class="button" aria-label="Back to home">⛅ Home</button>
       <form id="search-form" class="search" autocomplete="off">
         <input
           id="search-input"
           class="search__input"
           type="text"
-          placeholder="Search for a city…"
+          placeholder="Search another city…"
           aria-label="Search for a city"
         />
         <button type="submit" class="search__button" aria-label="Search">🔍</button>
-        <button type="button" id="locate-button" class="search__button" aria-label="Use my location" title="Use my location">📍</button>
         <ul id="search-results" class="search__results" hidden></ul>
       </form>
-      <button id="unit-toggle" class="unit-toggle" aria-label="Toggle temperature units">°C / °F</button>
+      <button id="unit-toggle" class="button" aria-label="Toggle temperature units">°C / °F</button>
     </header>
 
     <main class="main">
@@ -38,6 +71,10 @@
           <div>
             <h2 id="current-location" class="current__location">—</h2>
             <p id="current-date" class="current__date">—</p>
+            <p class="live">
+              <span class="live__dot" aria-hidden="true"></span>
+              Live · updated <span id="live-ago">just now</span>
+            </p>
           </div>
           <span id="current-icon" class="current__icon" role="img">—</span>
         </div>

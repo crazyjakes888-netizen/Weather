@@ -21,6 +21,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -47,6 +51,164 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* ---------- Home view ---------- */
+
+.home {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1rem;
+  text-align: center;
+}
+
+.home__logo {
+  font-size: clamp(2.25rem, 7vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.home__tagline {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  margin-top: -0.75rem;
+}
+
+.search.search--hero {
+  flex: 0 0 auto;
+  width: min(560px, 100%);
+}
+
+.search--hero .search__input {
+  padding: 0.85rem 1.3rem;
+  font-size: 1.05rem;
+}
+
+.search--hero .search__button {
+  padding: 0.85rem 1rem;
+}
+
+/* ---------- Buttons ---------- */
+
+.button {
+  padding: 0.6rem 1.2rem;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+}
+
+.button:hover {
+  background: var(--card-hover);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.button--primary {
+  background: #f2f2f2;
+  color: #000;
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.button--primary:hover {
+  background: #ffffff;
+  border-color: transparent;
+}
+
+/* ---------- Location modal ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.modal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-width: 400px;
+  width: 100%;
+  padding: 2rem 1.75rem;
+  text-align: center;
+  background: rgba(14, 14, 17, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+}
+
+.modal__icon {
+  font-size: 2.5rem;
+}
+
+.modal__card h2 {
+  font-size: 1.3rem;
+}
+
+.modal__card p {
+  color: var(--text-muted);
+}
+
+.modal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+/* ---------- Live indicator ---------- */
+
+.live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.live__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4ade80;
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 0 5px rgba(74, 222, 128, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live__dot {
+    animation: none;
+  }
 }
 
 /* ---------- Header & search ---------- */
@@ -94,8 +256,7 @@ body {
   background: var(--card-hover);
 }
 
-.search__button,
-.unit-toggle {
+.search__button {
   padding: 0.6rem 0.85rem;
   font-size: 1rem;
   color: var(--text);
@@ -107,8 +268,7 @@ body {
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 
-.search__button:hover,
-.unit-toggle:hover {
+.search__button:hover {
   background: var(--card-hover);
   border-color: rgba(255, 255, 255, 0.3);
 }
