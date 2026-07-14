@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A simple weather website — current conditions, hourly and 7-day forecasts." />
+  <title>Weather</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛅</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1 class="logo">⛅ Weather</h1>
+      <form id="search-form" class="search" autocomplete="off">
+        <input
+          id="search-input"
+          class="search__input"
+          type="text"
+          placeholder="Search for a city…"
+          aria-label="Search for a city"
+        />
+        <button type="submit" class="search__button" aria-label="Search">🔍</button>
+        <button type="button" id="locate-button" class="search__button" aria-label="Use my location" title="Use my location">📍</button>
+        <ul id="search-results" class="search__results" hidden></ul>
+      </form>
+      <button id="unit-toggle" class="unit-toggle" aria-label="Toggle temperature units">°C / °F</button>
+    </header>
+
+    <main class="main">
+      <!-- Status / error messages -->
+      <p id="status" class="status" hidden></p>
+
+      <!-- Current conditions -->
+      <section id="current" class="card current" hidden aria-label="Current weather">
+        <div class="current__top">
+          <div>
+            <h2 id="current-location" class="current__location">—</h2>
+            <p id="current-date" class="current__date">—</p>
+          </div>
+          <span id="current-icon" class="current__icon" role="img">—</span>
+        </div>
+        <div class="current__main">
+          <span id="current-temp" class="current__temp">—</span>
+          <div class="current__meta">
+            <p id="current-desc" class="current__desc">—</p>
+            <p>Feels like <span id="current-feels">—</span></p>
+          </div>
+        </div>
+        <dl class="current__details">
+          <div class="detail">
+            <dt>Humidity</dt>
+            <dd id="current-humidity">—</dd>
+          </div>
+          <div class="detail">
+            <dt>Wind</dt>
+            <dd id="current-wind">—</dd>
+          </div>
+          <div class="detail">
+            <dt>Precipitation</dt>
+            <dd id="current-precip">—</dd>
+          </div>
+          <div class="detail">
+            <dt>Sunrise</dt>
+            <dd id="current-sunrise">—</dd>
+          </div>
+          <div class="detail">
+            <dt>Sunset</dt>
+            <dd id="current-sunset">—</dd>
+          </div>
+        </dl>
+      </section>
+
+      <!-- Hourly forecast -->
+      <section id="hourly" class="card" hidden aria-label="Hourly forecast">
+        <h3 class="card__title">Next 24 hours</h3>
+        <div id="hourly-list" class="hourly"></div>
+      </section>
+
+      <!-- Daily forecast -->
+      <section id="daily" class="card" hidden aria-label="7-day forecast">
+        <h3 class="card__title">7-day forecast</h3>
+        <div id="daily-list" class="daily"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a></p>
+    </footer>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
