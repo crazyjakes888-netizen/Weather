@@ -440,17 +440,22 @@ function renderTicker(results) {
 
 function setupSearch({ form, input, results }, showStatus) {
   let debounceTimer = null;
+  let resultsGen = 0; // guards against stale async updates
 
   function hideResults() {
+    resultsGen++;
     results.hidden = true;
     results.innerHTML = "";
   }
 
   function showResults(cities) {
+    const gen = ++resultsGen;
     results.innerHTML = "";
     cities.forEach((city) => {
       const item = document.createElement("li");
-      item.textContent = formatLocation(city);
+      const name = document.createElement("span");
+      name.textContent = formatLocation(city);
+      item.appendChild(name);
       item.tabIndex = 0;
       item.addEventListener("click", () => {
         hideResults();
@@ -460,6 +465,39 @@ function setupSearch({ form, input, results }, showStatus) {
       results.appendChild(item);
     });
     results.hidden = cities.length === 0;
+    if (cities.length > 0) enrichResults(cities, gen);
+  }
+
+  // Add live conditions (icon, temperature, wind speed) to each suggestion
+  // with one batched forecast call.
+  async function enrichResults(cities, gen) {
+    try {
+      const params = new URLSearchParams({
+        latitude: cities.map((c) => c.latitude).join(","),
+        longitude: cities.map((c) => c.longitude).join(","),
+        current: "temperature_2m,weather_code,is_day,wind_speed_10m",
+        temperature_unit: state.unit,
+        wind_speed_unit: state.unit === "fahrenheit" ? "mph" : "kmh",
+      });
+      const data = await fetchJson(`${FORECAST_URL}?${params}`);
+      if (gen !== resultsGen) return; // results changed while we were fetching
+      const list = Array.isArray(data) ? data : [data];
+      Array.from(results.children).forEach((item, i) => {
+        const current = list[i] && list[i].current;
+        if (!current) return;
+        const info = weatherInfo(current.weather_code, current.is_day);
+        const meta = document.createElement("span");
+        meta.className = "search__meta";
+        meta.innerHTML = `
+          ${WeatherIcons.iconSvg(info.icon)}
+          <span>${Math.round(current.temperature_2m)}°</span>
+          <span>${Math.round(current.wind_speed_10m)} ${windUnit()}</span>
+        `;
+        item.appendChild(meta);
+      });
+    } catch {
+      // Live details are best-effort; suggestions still work without them.
+    }
   }
 
   // Live suggestions while typing.
