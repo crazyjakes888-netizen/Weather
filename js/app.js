@@ -734,10 +734,17 @@ function setupSearch({ form, input, results }, showStatus) {
 
 // ---------- Geolocation ----------
 
+// One shared IP lookup per page load (used for location and unit default).
+let ipInfoPromise = null;
+function getIpInfo() {
+  if (!ipInfoPromise) ipInfoPromise = fetchJson(IP_LOCATE_URL);
+  return ipInfoPromise;
+}
+
 // Approximate location from the visitor's IP address. Works even where
 // the browser blocks the geolocation prompt (e.g. in-app browsers).
 async function ipLocate() {
-  const data = await fetchJson(IP_LOCATE_URL);
+  const data = await getIpInfo();
   if (data.success === false || data.latitude == null) {
     throw new Error("IP lookup failed");
   }
@@ -760,6 +767,18 @@ async function fallbackToIpLocation() {
   } catch (error) {
     console.error(error);
     setHomeStatus("Couldn't detect your location — try searching for your town instead.");
+  }
+}
+
+// On open: immediately show weather for the visitor's IP-estimated area,
+// so the app is useful before (or without) the precise-location prompt.
+async function autoLocateOnOpen() {
+  try {
+    const location = await ipLocate();
+    if (state.location) return; // user already searched or located meanwhile
+    loadWeather(location);
+  } catch {
+    // No IP estimate — stay on the homepage.
   }
 }
 
@@ -819,7 +838,7 @@ function updateUnitToggle() {
 async function detectDefaultUnit() {
   if (localStorage.getItem("weather-unit")) return;
   try {
-    const data = await fetchJson(IP_LOCATE_URL);
+    const data = await getIpInfo();
     const code = (data.country_code || "").toUpperCase();
     if (localStorage.getItem("weather-unit")) return; // user toggled meanwhile
     const detected = FAHRENHEIT_COUNTRIES.includes(code) ? "fahrenheit" : "celsius";
@@ -879,7 +898,10 @@ function init() {
   updateUnitToggle();
   showView("home");
   maybeAskLocation();
-  detectDefaultUnit();
+  (async () => {
+    await detectDefaultUnit(); // set the right unit before the first fetch
+    autoLocateOnOpen();
+  })();
   loadTicker();
   setInterval(loadTicker, TICKER_REFRESH_MS);
 }
