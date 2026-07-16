@@ -304,7 +304,9 @@ const Background = (function () {
   // ---------- Public API ----------
 
   function setWeather(newMode) {
-    mode = MODES[newMode] ? newMode : "stars";
+    const resolved = MODES[newMode] ? newMode : "stars";
+    if (resolved === mode) return; // same scene — don't reshuffle particles
+    mode = resolved;
     shootingStars = [];
     flashAlpha = 0;
     nextFlashAt = performance.now() + 1500;
