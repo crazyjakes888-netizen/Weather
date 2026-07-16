@@ -1,30 +1,22 @@
 /* ============================================
-   Ambient sound engine.
-   Plays pre-rendered audio loops (assets/audio)
-   through Web Audio for seamless looping:
-   - ambient.mp3: calm bedtime-style music pad
-   - rain.mp3: rainfall, layered in during rain
-   Thunder and the alert bell are synthesized.
-   If the files fail to load/decode, a simple
-   synth pad + noise rain take their place.
+   Weather sound effects (no music).
+   - rain.mp3 loops during rain scenes
+   - thunder rumble after lightning flashes
+   - soft bell when a new alert appears
    Browsers only allow audio after a user
    gesture, so playback starts on first tap.
    ============================================ */
 
 const Sound = (function () {
-  const AMBIENT_URL = "assets/audio/ambient.mp3";
   const RAIN_URL = "assets/audio/rain.mp3";
 
   let ctx = null;
   let master = null;
-  let ambientGain = null;
   let rainGain = null;
   let started = false;
   let enabled = localStorage.getItem("weather-sound") !== "off";
   let scene = { rain: 0, thunder: false };
-  const sources = { ambient: "none", rain: "none" };
-
-  const AMBIENT_LEVEL = 0.45;
+  const sources = { rain: "none" };
 
   function ensure() {
     if (ctx) return;
@@ -34,20 +26,10 @@ const Sound = (function () {
     master = ctx.createGain();
     master.gain.value = 0.6;
     master.connect(ctx.destination);
-    ambientGain = ctx.createGain();
-    ambientGain.gain.value = 0;
-    ambientGain.connect(master);
     rainGain = ctx.createGain();
     rainGain.gain.value = 0;
     rainGain.connect(master);
 
-    loadLoop(AMBIENT_URL, ambientGain).then(
-      () => (sources.ambient = "file"),
-      () => {
-        sources.ambient = "synth";
-        buildSynthPad();
-      },
-    );
     loadLoop(RAIN_URL, rainGain).then(
       () => (sources.rain = "file"),
       () => {
@@ -68,33 +50,7 @@ const Sound = (function () {
     src.start();
   }
 
-  // ---------- Synth fallbacks (used only if the files can't play) ----------
-
-  function buildSynthPad() {
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 900;
-    filter.connect(ambientGain);
-    const notes = [110, 164.81, 220, 277.18]; // A2 E3 A3 C#4
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = i < 2 ? "sine" : "triangle";
-      osc.frequency.value = freq;
-      osc.detune.value = (i % 2 ? 1 : -1) * 3;
-      const gain = ctx.createGain();
-      gain.gain.value = 0.12;
-      const lfo = ctx.createOscillator();
-      lfo.frequency.value = 0.05 + i * 0.023;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.04;
-      lfo.connect(lfoGain);
-      lfoGain.connect(gain.gain);
-      osc.connect(gain);
-      gain.connect(filter);
-      osc.start();
-      lfo.start();
-    });
-  }
+  // ---------- Synth fallback (used only if the file can't play) ----------
 
   function noiseBuffer(seconds) {
     const buffer = ctx.createBuffer(1, ctx.sampleRate * seconds, ctx.sampleRate);
@@ -124,7 +80,6 @@ const Sound = (function () {
   function apply() {
     if (!started || !ctx) return;
     const t = ctx.currentTime;
-    ambientGain.gain.setTargetAtTime(enabled ? AMBIENT_LEVEL : 0, t, 1.2);
     rainGain.gain.setTargetAtTime(enabled ? scene.rain : 0, t, 1.2);
   }
 
