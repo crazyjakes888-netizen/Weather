@@ -153,6 +153,20 @@ function backgroundForWeather(code, isDay) {
   return isDay ? "clear-day" : "stars";
 }
 
+// Within ~40 minutes of the location's sunrise or sunset (all timestamps
+// are in the location's local time, so compare against current.time).
+function isTwilight(data) {
+  try {
+    const now = new Date(data.current.time);
+    const sunrise = new Date(data.daily.sunrise[0]);
+    const sunset = new Date(data.daily.sunset[0]);
+    const window = 40 * 60 * 1000;
+    return Math.abs(now - sunrise) < window || Math.abs(now - sunset) < window;
+  } catch {
+    return false;
+  }
+}
+
 function unitSymbol() {
   return state.unit === "fahrenheit" ? "°F" : "°C";
 }
@@ -220,6 +234,7 @@ function goHome() {
   setHomeStatus("");
   Background.setWeather("stars");
   Sound.setScene({});
+  document.body.classList.remove("day-sky");
   showView("home");
   el.homeInput.focus();
 }
@@ -567,7 +582,9 @@ async function loadWeather(location, { silent = false, source = "user" } = {}) {
       loadAlerts(location);
     }
     const bgMode = backgroundForWeather(data.current.weather_code, data.current.is_day);
-    Background.setWeather(bgMode);
+    const twilight = isTwilight(data);
+    Background.setWeather(bgMode, { isDay: !!data.current.is_day, twilight });
+    document.body.classList.toggle("day-sky", !!data.current.is_day || twilight);
     Sound.setScene(soundSceneFor(bgMode));
     state.lastUpdated = Date.now();
     updateAgo();

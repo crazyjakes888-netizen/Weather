@@ -25,6 +25,15 @@
   display: none !important;
 }
 
+/* Day-sky theme: darker glass cards keep text readable on bright skies */
+body.day-sky {
+  --card-bg: rgba(8, 20, 38, 0.4);
+  --card-hover: rgba(8, 20, 38, 0.58);
+  --border: rgba(255, 255, 255, 0.28);
+  --text-muted: #e2eaf4;
+  --accent: #cfe6ff;
+}
+
 .icon {
   display: block;
 }

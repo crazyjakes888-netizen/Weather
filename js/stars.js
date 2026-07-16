@@ -15,6 +15,8 @@ const Background = (function () {
   let width = 0;
   let height = 0;
   let mode = "stars";
+  let sceneIsDay = false;
+  let sceneTwilight = false;
 
   let stars = [];
   let shootingStars = [];
@@ -39,6 +41,26 @@ const Background = (function () {
 
   function conf() {
     return MODES[mode] || MODES.stars;
+  }
+
+  // Daytime sky gradients per scene; night stays black with stars.
+  const SKY_DAY = {
+    "clear-day": ["#2f74c9", "#8ec9f5"],
+    cloudy: ["#5b7a99", "#a3b8cb"],
+    fog: ["#8a97a5", "#bcc6d0"],
+    drizzle: ["#4a5d73", "#8299ae"],
+    rain: ["#42536b", "#75899e"],
+    thunder: ["#2b3646", "#4f5f71"],
+    snow: ["#6f8299", "#b5c4d4"],
+  };
+  const SKY_TWILIGHT = ["#1d2c5e", "#d97548"];
+
+  function skyColors() {
+    if (sceneTwilight && ["clear-day", "stars", "cloudy"].includes(mode)) {
+      return SKY_TWILIGHT;
+    }
+    if (!sceneIsDay) return null;
+    return SKY_DAY[mode] || null;
   }
 
   // ---------- Setup ----------
@@ -116,9 +138,24 @@ const Background = (function () {
 
   // ---------- Drawing ----------
 
+  function drawSky() {
+    const colors = skyColors();
+    if (!colors) return false;
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, colors[0]);
+    gradient.addColorStop(1, colors[1]);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, width, height);
+    return true;
+  }
+
   function drawStars(now) {
     const t = now / 1000;
-    const dim = conf().starDim;
+    let dim = conf().starDim;
+    if (skyColors()) {
+      if (!sceneTwilight) return; // stars invisible in daylight
+      dim *= 0.35; // faint stars at dusk/dawn
+    }
     for (const star of stars) {
       const twinkle = 0.5 + 0.5 * Math.sin(t * star.twinkleSpeed + star.twinklePhase);
       ctx.globalAlpha = star.baseAlpha * (0.4 + 0.6 * twinkle) * dim;
@@ -143,22 +180,33 @@ const Background = (function () {
   }
 
   function drawGlow() {
-    const cx = width * 0.72;
-    const gradient = ctx.createRadialGradient(cx, -60, 0, cx, -60, Math.max(width, height) * 0.55);
-    gradient.addColorStop(0, "rgba(255, 190, 110, 0.13)");
-    gradient.addColorStop(0.5, "rgba(255, 170, 90, 0.05)");
-    gradient.addColorStop(1, "rgba(255, 170, 90, 0)");
-    ctx.fillStyle = gradient;
+    const cx = width * 0.75;
+    const cy = height * 0.16;
+    // Visible sun disc with a soft halo on the day sky.
+    const sun = ctx.createRadialGradient(cx, cy, 0, cx, cy, 90);
+    sun.addColorStop(0, "rgba(255, 250, 225, 0.95)");
+    sun.addColorStop(0.35, "rgba(255, 235, 170, 0.55)");
+    sun.addColorStop(1, "rgba(255, 225, 140, 0)");
+    ctx.fillStyle = sun;
+    ctx.fillRect(cx - 90, cy - 90, 180, 180);
+    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.5);
+    halo.addColorStop(0, "rgba(255, 230, 160, 0.22)");
+    halo.addColorStop(1, "rgba(255, 220, 140, 0)");
+    ctx.fillStyle = halo;
     ctx.fillRect(0, 0, width, height);
   }
 
   function drawClouds(dt) {
+    const daylight = !!skyColors();
     for (const cloud of clouds) {
       cloud.x += cloud.speed * dt;
       if (cloud.x - cloud.rx > width) cloud.x = -cloud.rx;
       ctx.beginPath();
       ctx.ellipse(cloud.x, cloud.y, cloud.rx, cloud.ry, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(170, 185, 205, ${cloud.alpha})`;
+      // Bright soft clouds against a day sky, dark wisps at night.
+      ctx.fillStyle = daylight
+        ? `rgba(255, 255, 255, ${Math.min(cloud.alpha * 6, 0.42)})`
+        : `rgba(170, 185, 205, ${cloud.alpha})`;
       ctx.fill();
     }
   }
@@ -294,6 +342,7 @@ const Background = (function () {
     const c = conf();
 
     ctx.clearRect(0, 0, width, height);
+    drawSky();
     drawStars(now);
     driftStars(dt);
     if (c.glow) drawGlow();
@@ -312,6 +361,7 @@ const Background = (function () {
 
   function drawStatic() {
     ctx.clearRect(0, 0, width, height);
+    drawSky();
     drawStars(performance.now());
     const c = conf();
     if (c.glow) drawGlow();
@@ -320,10 +370,14 @@ const Background = (function () {
 
   // ---------- Public API ----------
 
-  function setWeather(newMode) {
+  function setWeather(newMode, { isDay = false, twilight = false } = {}) {
     const resolved = MODES[newMode] ? newMode : "stars";
-    if (resolved === mode) return; // same scene — don't reshuffle particles
+    if (resolved === mode && isDay === sceneIsDay && twilight === sceneTwilight) {
+      return; // same scene — don't reshuffle particles
+    }
     mode = resolved;
+    sceneIsDay = isDay;
+    sceneTwilight = twilight;
     shootingStars = [];
     flashAlpha = 0;
     nextFlashAt = performance.now() + 1500;
