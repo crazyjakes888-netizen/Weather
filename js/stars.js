@@ -202,6 +202,10 @@ const Background = (function () {
     if (now >= nextFlashAt) {
       flashAlpha = 0.4 + Math.random() * 0.2;
       nextFlashAt = now + 2500 + Math.random() * 5500;
+      // Flash first, thunder rolls in shortly after.
+      if (typeof Sound !== "undefined") {
+        setTimeout(() => Sound.thunder(), 150 + Math.random() * 900);
+      }
     }
     if (flashAlpha > 0.004) {
       ctx.fillStyle = `rgba(225, 235, 255, ${flashAlpha})`;

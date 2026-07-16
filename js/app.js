@@ -106,6 +106,7 @@ const el = {
   input: document.getElementById("search-input"),
   results: document.getElementById("search-results"),
   unitToggle: document.getElementById("unit-toggle"),
+  soundToggle: document.getElementById("sound-toggle"),
   status: document.getElementById("status"),
   alerts: document.getElementById("alerts"),
   alertsList: document.getElementById("alerts-list"),
@@ -208,8 +209,17 @@ function goHome() {
   stopLiveUpdates();
   setHomeStatus("");
   Background.setWeather("stars");
+  Sound.setScene({});
   showView("home");
   el.homeInput.focus();
+}
+
+// Rain audio level per background scene; thunder scenes also rumble.
+function soundSceneFor(bgMode) {
+  if (bgMode === "thunder") return { rain: 0.2, thunder: true };
+  if (bgMode === "rain") return { rain: 0.16 };
+  if (bgMode === "drizzle") return { rain: 0.08 };
+  return {};
 }
 
 // ---------- Live updates ----------
@@ -517,9 +527,9 @@ async function loadWeather(location, { silent = false } = {}) {
     renderHourly(data);
     renderDaily(data);
     loadAlerts(location);
-    Background.setWeather(
-      backgroundForWeather(data.current.weather_code, data.current.is_day),
-    );
+    const bgMode = backgroundForWeather(data.current.weather_code, data.current.is_day);
+    Background.setWeather(bgMode);
+    Sound.setScene(soundSceneFor(bgMode));
     state.lastUpdated = Date.now();
     updateAgo();
     setWeatherStatus("");
@@ -796,6 +806,12 @@ async function detectDefaultUnit() {
 
 // ---------- Init ----------
 
+function updateSoundToggle() {
+  const on = Sound.isEnabled();
+  el.soundToggle.innerHTML = WeatherIcons.iconSvg(on ? "volume" : "volume-off");
+  el.soundToggle.setAttribute("aria-label", on ? "Mute sound" : "Unmute sound");
+}
+
 function init() {
   setupSearch(
     { form: el.homeForm, input: el.homeInput, results: el.homeResults },
@@ -810,6 +826,12 @@ function init() {
   el.homeButton.addEventListener("click", goHome);
   el.unitToggle.addEventListener("click", handleUnitToggle);
   el.homeUnit.addEventListener("click", handleUnitToggle);
+
+  updateSoundToggle();
+  el.soundToggle.addEventListener("click", () => {
+    Sound.toggle();
+    updateSoundToggle();
+  });
 
   el.geoYes.addEventListener("click", () => {
     closeGeoModal();
