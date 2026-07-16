@@ -24,7 +24,7 @@ const Sound = (function () {
     if (!AC) return;
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = 0.4;
+    master.gain.value = 0.6;
     master.connect(ctx.destination);
     buildAmbient();
     buildRain();
@@ -47,11 +47,11 @@ const Sound = (function () {
       osc.frequency.value = freq;
       osc.detune.value = (i % 2 ? 1 : -1) * 3;
       const gain = ctx.createGain();
-      gain.gain.value = 0.028;
+      gain.gain.value = 0.05;
       const lfo = ctx.createOscillator();
       lfo.frequency.value = 0.05 + i * 0.023;
       const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.012;
+      lfoGain.gain.value = 0.02;
       lfo.connect(lfoGain);
       lfoGain.connect(gain.gain);
       osc.connect(gain);
@@ -96,10 +96,18 @@ const Sound = (function () {
   }
 
   function start() {
-    if (started || !enabled) return;
+    if (!enabled) return;
     ensure();
     if (!ctx) return;
-    ctx.resume();
+    if (ctx.state !== "running") {
+      ctx.resume();
+      // iOS unlock trick: play a silent buffer inside the user gesture.
+      const buf = ctx.createBuffer(1, 1, 22050);
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.connect(ctx.destination);
+      src.start(0);
+    }
     started = true;
     apply();
   }
@@ -162,15 +170,23 @@ const Sound = (function () {
     return enabled;
   }
 
-  function onFirstGesture() {
+  // Keep trying on every gesture until the context is actually running —
+  // iOS in particular can ignore the first resume attempt.
+  const GESTURES = ["pointerdown", "touchend", "click", "keydown"];
+  function onGesture() {
     start();
-    if (started) {
-      document.removeEventListener("pointerdown", onFirstGesture);
-      document.removeEventListener("keydown", onFirstGesture);
+    if (ctx && ctx.state === "running") {
+      GESTURES.forEach((evt) => document.removeEventListener(evt, onGesture));
     }
   }
-  document.addEventListener("pointerdown", onFirstGesture);
-  document.addEventListener("keydown", onFirstGesture);
+  GESTURES.forEach((evt) => document.addEventListener(evt, onGesture));
+
+  // iOS suspends audio when the tab is hidden; resume on return.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && started && ctx && ctx.state !== "running") {
+      ctx.resume();
+    }
+  });
 
   return { setScene, thunder, bell, toggle, isEnabled };
 })();

@@ -225,9 +225,9 @@ function goHome() {
 
 // Rain audio level per background scene; thunder scenes also rumble.
 function soundSceneFor(bgMode) {
-  if (bgMode === "thunder") return { rain: 0.2, thunder: true };
-  if (bgMode === "rain") return { rain: 0.16 };
-  if (bgMode === "drizzle") return { rain: 0.08 };
+  if (bgMode === "thunder") return { rain: 0.28, thunder: true };
+  if (bgMode === "rain") return { rain: 0.22 };
+  if (bgMode === "drizzle") return { rain: 0.12 };
   return {};
 }
 
