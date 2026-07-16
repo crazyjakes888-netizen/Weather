@@ -83,6 +83,7 @@ const WEATHER_CODES = {
 const state = {
   unit: localStorage.getItem("weather-unit") || "celsius", // "celsius" | "fahrenheit"
   location: null,
+  locationSource: null, // "ip" | "gps" | "user"
   lastUpdated: null,
   refreshTimer: null,
   agoTimer: null,
@@ -103,9 +104,6 @@ const el = {
   homeLocate: document.getElementById("home-locate"),
   homeUnit: document.getElementById("home-unit"),
   homeStatus: document.getElementById("home-status"),
-  geoModal: document.getElementById("geo-modal"),
-  geoYes: document.getElementById("geo-yes"),
-  geoNo: document.getElementById("geo-no"),
   homeButton: document.getElementById("home-button"),
   form: document.getElementById("search-form"),
   input: document.getElementById("search-input"),
@@ -547,8 +545,9 @@ function renderDaily(data) {
 
 // ---------- Main flow ----------
 
-async function loadWeather(location, { silent = false } = {}) {
+async function loadWeather(location, { silent = false, source = "user" } = {}) {
   state.location = location;
+  if (!silent) state.locationSource = source;
   if (!silent) {
     showView("weather");
     showSections(false);
@@ -785,11 +784,30 @@ async function fallbackToIpLocation() {
 async function autoLocateOnOpen() {
   try {
     const location = await ipLocate();
-    if (state.location) return; // user already searched or located meanwhile
-    loadWeather(location);
+    if (state.location) return; // GPS or a search already won the race
+    loadWeather(location, { source: "ip" });
   } catch {
     // No IP estimate — stay on the homepage.
   }
+}
+
+// Fired the moment the app opens: ask the browser for the precise position
+// right away. If it's denied, ignored, or slow, the IP result (loading in
+// parallel) stays on screen; a granted prompt upgrades it. A manual search
+// always wins over both.
+function autoGeolocate() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      if (state.locationSource === "user") return;
+      const { latitude, longitude } = position.coords;
+      const location = await reverseGeocode(latitude, longitude);
+      if (state.locationSource === "user") return;
+      loadWeather(location, { source: "gps" });
+    },
+    () => {}, // fall through to the IP-based weather already showing
+    { timeout: 15000, maximumAge: 300000 },
+  );
 }
 
 function requestGeolocation() {
@@ -809,19 +827,6 @@ function requestGeolocation() {
     fallbackToIpLocation,
     { timeout: 8000, maximumAge: 300000 },
   );
-}
-
-// ---------- Location permission modal ----------
-
-function maybeAskLocation() {
-  // Ask once per visit; a fresh visit asks again.
-  if (sessionStorage.getItem("geo-prompted")) return;
-  el.geoModal.hidden = false;
-}
-
-function closeGeoModal() {
-  sessionStorage.setItem("geo-prompted", "1");
-  el.geoModal.hidden = true;
 }
 
 // ---------- Units ----------
@@ -892,12 +897,6 @@ function init() {
     updateSoundToggle();
   });
 
-  el.geoYes.addEventListener("click", () => {
-    closeGeoModal();
-    requestGeolocation();
-  });
-  el.geoNo.addEventListener("click", closeGeoModal);
-
   // Refresh immediately when the tab becomes visible again.
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && state.location && el.weatherView.hidden === false) {
@@ -907,10 +906,10 @@ function init() {
 
   updateUnitToggle();
   showView("home");
-  maybeAskLocation();
+  autoGeolocate(); // native location prompt fires immediately on open
   (async () => {
     await detectDefaultUnit(); // set the right unit before the first fetch
-    autoLocateOnOpen();
+    autoLocateOnOpen(); // IP fallback loads in parallel
   })();
   loadTicker();
   setInterval(loadTicker, TICKER_REFRESH_MS);
