@@ -171,6 +171,13 @@ body {
   padding: 0.85rem 1rem;
 }
 
+.home__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.6rem;
+}
+
 /* ---------- Buttons ---------- */
 
 .button {

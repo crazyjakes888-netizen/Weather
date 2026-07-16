@@ -96,6 +96,7 @@ const el = {
   homeInput: document.getElementById("home-input"),
   homeResults: document.getElementById("home-results"),
   homeLocate: document.getElementById("home-locate"),
+  homeUnit: document.getElementById("home-unit"),
   homeStatus: document.getElementById("home-status"),
   geoModal: document.getElementById("geo-modal"),
   geoYes: document.getElementById("geo-yes"),
@@ -756,8 +757,12 @@ function closeGeoModal() {
 
 // ---------- Units ----------
 
+// Countries that use Fahrenheit day-to-day.
+const FAHRENHEIT_COUNTRIES = ["US", "BS", "BZ", "KY", "PW", "FM", "MH", "LR"];
+
 function handleUnitToggle() {
   state.unit = state.unit === "celsius" ? "fahrenheit" : "celsius";
+  // Manual choice is saved and wins over auto-detection on future visits.
   localStorage.setItem("weather-unit", state.unit);
   updateUnitToggle();
   if (state.location) loadWeather(state.location, { silent: true });
@@ -765,7 +770,28 @@ function handleUnitToggle() {
 }
 
 function updateUnitToggle() {
-  el.unitToggle.textContent = state.unit === "celsius" ? "°C → °F" : "°F → °C";
+  const label = state.unit === "celsius" ? "°C → °F" : "°F → °C";
+  el.unitToggle.textContent = label;
+  el.homeUnit.textContent = label;
+}
+
+// First visit only: default the unit to what the visitor's country uses.
+async function detectDefaultUnit() {
+  if (localStorage.getItem("weather-unit")) return;
+  try {
+    const data = await fetchJson(IP_LOCATE_URL);
+    const code = (data.country_code || "").toUpperCase();
+    if (localStorage.getItem("weather-unit")) return; // user toggled meanwhile
+    const detected = FAHRENHEIT_COUNTRIES.includes(code) ? "fahrenheit" : "celsius";
+    if (detected !== state.unit) {
+      state.unit = detected;
+      updateUnitToggle();
+      if (state.location) loadWeather(state.location, { silent: true });
+      loadTicker();
+    }
+  } catch {
+    // Keep the celsius default if the lookup fails.
+  }
 }
 
 // ---------- Init ----------
@@ -783,6 +809,7 @@ function init() {
   el.homeLocate.addEventListener("click", requestGeolocation);
   el.homeButton.addEventListener("click", goHome);
   el.unitToggle.addEventListener("click", handleUnitToggle);
+  el.homeUnit.addEventListener("click", handleUnitToggle);
 
   el.geoYes.addEventListener("click", () => {
     closeGeoModal();
@@ -800,6 +827,7 @@ function init() {
   updateUnitToggle();
   showView("home");
   maybeAskLocation();
+  detectDefaultUnit();
   loadTicker();
   setInterval(loadTicker, TICKER_REFRESH_MS);
 }

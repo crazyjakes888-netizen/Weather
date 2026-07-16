@@ -66,7 +66,7 @@ const Background = (function () {
       baseAlpha: Math.random() * 0.5 + 0.3,
       twinkleSpeed: Math.random() * 1.5 + 0.3,
       twinklePhase: Math.random() * Math.PI * 2,
-      driftSpeed: Math.random() * 2 + 0.5,
+      driftSpeed: Math.random() * 0.9 + 0.2,
     }));
   }
 
