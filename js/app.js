@@ -20,7 +20,10 @@ const NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"; // United States
 const EC_ALERTS_URL = "https://api.weather.gc.ca/collections/alerts/items"; // Canada
 
 // How often the weather view re-fetches fresh data.
-const REFRESH_INTERVAL_MS = 60 * 1000;
+const REFRESH_INTERVAL_MS = 7 * 1000;
+
+// Alerts change rarely — no need to hit the alert APIs on every refresh.
+const ALERTS_REFRESH_MS = 60 * 1000;
 
 // How often the homepage city ticker refreshes.
 const TICKER_REFRESH_MS = 5 * 60 * 1000;
@@ -556,7 +559,14 @@ async function loadWeather(location, { silent = false } = {}) {
     renderCurrent(data, location);
     renderHourly(data);
     renderDaily(data);
-    loadAlerts(location);
+    const locKey = `${location.latitude},${location.longitude}`;
+    if (
+      state.alertsLocKey !== locKey ||
+      Date.now() - (state.lastAlertsFetch || 0) > ALERTS_REFRESH_MS
+    ) {
+      state.lastAlertsFetch = Date.now();
+      loadAlerts(location);
+    }
     const bgMode = backgroundForWeather(data.current.weather_code, data.current.is_day);
     Background.setWeather(bgMode);
     Sound.setScene(soundSceneFor(bgMode));
