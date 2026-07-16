@@ -25,6 +25,10 @@
   display: none !important;
 }
 
+.icon {
+  display: block;
+}
+
 body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
@@ -155,7 +159,14 @@ body {
 }
 
 .modal__icon {
-  font-size: 2.5rem;
+  display: flex;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.modal__icon .icon {
+  width: 40px;
+  height: 40px;
 }
 
 .modal__card h2 {
@@ -273,6 +284,11 @@ body {
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.search__button .icon {
+  width: 18px;
+  height: 18px;
+}
+
 .search__results {
   position: absolute;
   top: calc(100% + 6px);
@@ -348,8 +364,12 @@ body {
 }
 
 .current__icon {
-  font-size: 3rem;
   line-height: 1;
+}
+
+.current__icon .icon {
+  width: 52px;
+  height: 52px;
 }
 
 .current__main {
@@ -420,8 +440,10 @@ body {
   color: var(--text-muted);
 }
 
-.hourly__icon {
-  font-size: 1.4rem;
+.hourly__icon .icon {
+  width: 22px;
+  height: 22px;
+  margin: 0 auto;
 }
 
 .hourly__temp {
@@ -457,8 +479,9 @@ body {
   font-weight: 600;
 }
 
-.daily__icon {
-  font-size: 1.3rem;
+.daily__icon .icon {
+  width: 20px;
+  height: 20px;
 }
 
 .daily__precip {

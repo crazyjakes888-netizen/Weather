@@ -2,12 +2,14 @@
    Weather — app logic
    Two views: a starfield home page (search or
    "use my location") and a live-updating
-   weather page for the chosen place.
+   weather page whose background matches the
+   current conditions.
 
    APIs (all free, no key needed):
    - Forecast:  https://open-meteo.com/en/docs
    - Geocoding: https://open-meteo.com/en/docs/geocoding-api
    - Reverse geocoding: https://www.bigdatacloud.com/free-api/free-reverse-geocode-to-city-api
+   - IP location fallback: https://ipwho.is
    ============================================ */
 
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
@@ -18,36 +20,36 @@ const IP_LOCATE_URL = "https://ipwho.is/";
 // How often the weather view re-fetches fresh data.
 const REFRESH_INTERVAL_MS = 60 * 1000;
 
-// WMO weather interpretation codes -> description + emoji icon
+// WMO weather interpretation codes -> description + icon name (see icons.js)
 const WEATHER_CODES = {
-  0: { desc: "Clear sky", icon: "☀️", nightIcon: "🌙" },
-  1: { desc: "Mainly clear", icon: "🌤️", nightIcon: "🌙" },
-  2: { desc: "Partly cloudy", icon: "⛅", nightIcon: "☁️" },
-  3: { desc: "Overcast", icon: "☁️" },
-  45: { desc: "Fog", icon: "🌫️" },
-  48: { desc: "Depositing rime fog", icon: "🌫️" },
-  51: { desc: "Light drizzle", icon: "🌦️" },
-  53: { desc: "Moderate drizzle", icon: "🌦️" },
-  55: { desc: "Dense drizzle", icon: "🌧️" },
-  56: { desc: "Light freezing drizzle", icon: "🌧️" },
-  57: { desc: "Dense freezing drizzle", icon: "🌧️" },
-  61: { desc: "Slight rain", icon: "🌦️" },
-  63: { desc: "Moderate rain", icon: "🌧️" },
-  65: { desc: "Heavy rain", icon: "🌧️" },
-  66: { desc: "Light freezing rain", icon: "🌧️" },
-  67: { desc: "Heavy freezing rain", icon: "🌧️" },
-  71: { desc: "Slight snow", icon: "🌨️" },
-  73: { desc: "Moderate snow", icon: "🌨️" },
-  75: { desc: "Heavy snow", icon: "❄️" },
-  77: { desc: "Snow grains", icon: "❄️" },
-  80: { desc: "Slight rain showers", icon: "🌦️" },
-  81: { desc: "Moderate rain showers", icon: "🌧️" },
-  82: { desc: "Violent rain showers", icon: "⛈️" },
-  85: { desc: "Slight snow showers", icon: "🌨️" },
-  86: { desc: "Heavy snow showers", icon: "❄️" },
-  95: { desc: "Thunderstorm", icon: "⛈️" },
-  96: { desc: "Thunderstorm with slight hail", icon: "⛈️" },
-  99: { desc: "Thunderstorm with heavy hail", icon: "⛈️" },
+  0: { desc: "Clear sky", icon: "sun", nightIcon: "moon" },
+  1: { desc: "Mainly clear", icon: "sun", nightIcon: "moon" },
+  2: { desc: "Partly cloudy", icon: "cloud-sun", nightIcon: "cloud-moon" },
+  3: { desc: "Overcast", icon: "cloud" },
+  45: { desc: "Fog", icon: "fog" },
+  48: { desc: "Depositing rime fog", icon: "fog" },
+  51: { desc: "Light drizzle", icon: "drizzle" },
+  53: { desc: "Moderate drizzle", icon: "drizzle" },
+  55: { desc: "Dense drizzle", icon: "drizzle" },
+  56: { desc: "Light freezing drizzle", icon: "drizzle" },
+  57: { desc: "Dense freezing drizzle", icon: "drizzle" },
+  61: { desc: "Slight rain", icon: "rain" },
+  63: { desc: "Moderate rain", icon: "rain" },
+  65: { desc: "Heavy rain", icon: "rain" },
+  66: { desc: "Light freezing rain", icon: "rain" },
+  67: { desc: "Heavy freezing rain", icon: "rain" },
+  71: { desc: "Slight snow", icon: "snow" },
+  73: { desc: "Moderate snow", icon: "snow" },
+  75: { desc: "Heavy snow", icon: "snow" },
+  77: { desc: "Snow grains", icon: "snow" },
+  80: { desc: "Slight rain showers", icon: "rain" },
+  81: { desc: "Moderate rain showers", icon: "rain" },
+  82: { desc: "Violent rain showers", icon: "thunder" },
+  85: { desc: "Slight snow showers", icon: "snow" },
+  86: { desc: "Heavy snow showers", icon: "snow" },
+  95: { desc: "Thunderstorm", icon: "thunder" },
+  96: { desc: "Thunderstorm with slight hail", icon: "thunder" },
+  99: { desc: "Thunderstorm with heavy hail", icon: "thunder" },
 };
 
 // ---------- App state ----------
@@ -101,9 +103,21 @@ const el = {
 // ---------- Helpers ----------
 
 function weatherInfo(code, isDay = 1) {
-  const info = WEATHER_CODES[code] || { desc: "Unknown", icon: "❔" };
+  const info = WEATHER_CODES[code] || { desc: "Unknown", icon: "cloud" };
   const icon = !isDay && info.nightIcon ? info.nightIcon : info.icon;
   return { desc: info.desc, icon };
+}
+
+// Which background animation matches the current conditions.
+function backgroundForWeather(code, isDay) {
+  if (code >= 95 || code === 82) return "thunder";
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+  if ((code >= 61 && code <= 67) || code === 80 || code === 81) return "rain";
+  if (code >= 51 && code <= 57) return "drizzle";
+  if (code === 45 || code === 48) return "fog";
+  if (code === 3) return "cloudy";
+  if (code === 2) return isDay ? "cloudy" : "stars";
+  return isDay ? "clear-day" : "stars";
 }
 
 function unitSymbol() {
@@ -164,6 +178,7 @@ function showView(view) {
 function goHome() {
   stopLiveUpdates();
   setHomeStatus("");
+  Background.setWeather("stars");
   showView("home");
   el.homeInput.focus();
 }
@@ -204,9 +219,21 @@ async function fetchJson(url) {
 }
 
 async function searchCities(query) {
-  const url = `${GEOCODING_URL}?name=${encodeURIComponent(query)}&count=5&language=en&format=json`;
+  const url = `${GEOCODING_URL}?name=${encodeURIComponent(query)}&count=8&language=en&format=json`;
   const data = await fetchJson(url);
-  return data.results || [];
+  return dedupeCities(data.results || []);
+}
+
+// The geocoding API sometimes returns near-identical entries; keep the first
+// of each "name, region, country" combination.
+function dedupeCities(cities) {
+  const seen = new Set();
+  return cities.filter((city) => {
+    const key = [city.name, city.admin1, city.country].join("|").toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 async function reverseGeocode(latitude, longitude) {
@@ -256,7 +283,7 @@ function renderCurrent(data, location) {
     month: "long",
     day: "numeric",
   });
-  el.currentIcon.textContent = info.icon;
+  el.currentIcon.innerHTML = WeatherIcons.iconSvg(info.icon);
   el.currentIcon.setAttribute("aria-label", info.desc);
   el.currentTemp.textContent = `${Math.round(current.temperature_2m)}${unitSymbol()}`;
   el.currentDesc.textContent = info.desc;
@@ -282,7 +309,7 @@ function renderHourly(data) {
     item.className = "hourly__item";
     item.innerHTML = `
       <span class="hourly__time">${formatHour(hourly.time[i])}</span>
-      <span class="hourly__icon" role="img" aria-label="${info.desc}">${info.icon}</span>
+      <span class="hourly__icon" role="img" aria-label="${info.desc}">${WeatherIcons.iconSvg(info.icon)}</span>
       <span class="hourly__temp">${Math.round(hourly.temperature_2m[i])}°</span>
       <span class="hourly__precip">${hourly.precipitation_probability[i]}%</span>
     `;
@@ -299,8 +326,8 @@ function renderDaily(data) {
     row.className = "daily__row";
     row.innerHTML = `
       <span class="daily__day">${formatDay(date, i)}</span>
-      <span class="daily__icon" role="img" aria-label="${info.desc}">${info.icon}</span>
-      <span class="daily__precip">💧${daily.precipitation_probability_max[i]}%</span>
+      <span class="daily__icon" role="img" aria-label="${info.desc}">${WeatherIcons.iconSvg(info.icon)}</span>
+      <span class="daily__precip">${daily.precipitation_probability_max[i]}%</span>
       <span class="daily__temps">
         <strong>${Math.round(daily.temperature_2m_max[i])}°</strong>
         <span class="daily__min">/ ${Math.round(daily.temperature_2m_min[i])}°</span>
@@ -324,6 +351,9 @@ async function loadWeather(location, { silent = false } = {}) {
     renderCurrent(data, location);
     renderHourly(data);
     renderDaily(data);
+    Background.setWeather(
+      backgroundForWeather(data.current.weather_code, data.current.is_day),
+    );
     state.lastUpdated = Date.now();
     updateAgo();
     setWeatherStatus("");
@@ -343,6 +373,8 @@ async function loadWeather(location, { silent = false } = {}) {
 // ---------- Search (shared by home + weather header) ----------
 
 function setupSearch({ form, input, results }, showStatus) {
+  let debounceTimer = null;
+
   function hideResults() {
     results.hidden = true;
     results.innerHTML = "";
@@ -364,8 +396,31 @@ function setupSearch({ form, input, results }, showStatus) {
     results.hidden = cities.length === 0;
   }
 
+  // Live suggestions while typing.
+  async function suggest() {
+    const query = input.value.trim();
+    if (query.length < 2) {
+      hideResults();
+      return;
+    }
+    try {
+      const cities = await searchCities(query);
+      // Ignore stale responses that arrive after the input changed.
+      if (input.value.trim() === query) showResults(cities);
+    } catch {
+      // Suggestions are best-effort; a failed lookup just shows nothing.
+    }
+  }
+
+  input.addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(suggest, 250);
+  });
+
+  // Submitting goes straight to the best match.
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    clearTimeout(debounceTimer);
     const query = input.value.trim();
     if (!query) return;
     try {
@@ -376,13 +431,9 @@ function setupSearch({ form, input, results }, showStatus) {
         return;
       }
       showStatus("");
-      if (cities.length === 1) {
-        hideResults();
-        input.value = "";
-        loadWeather(cities[0]);
-      } else {
-        showResults(cities);
-      }
+      hideResults();
+      input.value = "";
+      loadWeather(cities[0]);
     } catch (error) {
       console.error(error);
       showStatus("City search failed. Please try again.");
