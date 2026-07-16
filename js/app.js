@@ -13,6 +13,7 @@
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client";
+const IP_LOCATE_URL = "https://ipwho.is/";
 
 // How often the weather view re-fetches fresh data.
 const REFRESH_INTERVAL_MS = 60 * 1000;
@@ -248,7 +249,8 @@ function renderCurrent(data, location) {
   const { current, daily } = data;
   const info = weatherInfo(current.weather_code, current.is_day);
 
-  el.currentLocation.textContent = formatLocation(location);
+  el.currentLocation.textContent =
+    formatLocation(location) + (location.approximate ? " (approx.)" : "");
   el.currentDate.textContent = new Date().toLocaleDateString([], {
     weekday: "long",
     month: "long",
@@ -394,9 +396,38 @@ function setupSearch({ form, input, results }, showStatus) {
 
 // ---------- Geolocation ----------
 
+// Approximate location from the visitor's IP address. Works even where
+// the browser blocks the geolocation prompt (e.g. in-app browsers).
+async function ipLocate() {
+  const data = await fetchJson(IP_LOCATE_URL);
+  if (data.success === false || data.latitude == null) {
+    throw new Error("IP lookup failed");
+  }
+  return {
+    name: data.city || "My area",
+    admin1: data.region || "",
+    country: data.country || "",
+    latitude: data.latitude,
+    longitude: data.longitude,
+    approximate: true,
+  };
+}
+
+async function fallbackToIpLocation() {
+  setHomeStatus("Precise location unavailable — finding your approximate area…");
+  try {
+    const location = await ipLocate();
+    setHomeStatus("");
+    loadWeather(location);
+  } catch (error) {
+    console.error(error);
+    setHomeStatus("Couldn't detect your location — try searching for your town instead.");
+  }
+}
+
 function requestGeolocation() {
   if (!navigator.geolocation) {
-    setHomeStatus("Geolocation is not supported by this browser.");
+    fallbackToIpLocation();
     return;
   }
   setHomeStatus("Getting your location…");
@@ -407,8 +438,9 @@ function requestGeolocation() {
       setHomeStatus("");
       loadWeather(location);
     },
-    () => setHomeStatus("Couldn't get your location — try searching instead."),
-    { timeout: 10000, maximumAge: 300000 },
+    // Denied, unavailable, or timed out — fall back to IP-based location.
+    fallbackToIpLocation,
+    { timeout: 8000, maximumAge: 300000 },
   );
 }
 
