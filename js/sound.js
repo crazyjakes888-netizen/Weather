@@ -126,6 +126,25 @@ const Sound = (function () {
     src.stop(t + dur);
   }
 
+  // Soft two-partial chime for new weather alerts.
+  function bell() {
+    if (!started || !enabled || !ctx) return;
+    const t = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(i ? 0.05 : 0.12, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+      osc.connect(gain);
+      gain.connect(master);
+      osc.start(t);
+      osc.stop(t + 1.7);
+    });
+  }
+
   function setScene(next) {
     scene = { rain: 0, thunder: false, ...next };
     apply();
@@ -153,6 +172,6 @@ const Sound = (function () {
   document.addEventListener("pointerdown", onFirstGesture);
   document.addEventListener("keydown", onFirstGesture);
 
-  return { setScene, thunder, toggle, isEnabled };
+  return { setScene, thunder, bell, toggle, isEnabled };
 })();
 window.Sound = Sound;

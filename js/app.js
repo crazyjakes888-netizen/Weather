@@ -83,6 +83,8 @@ const state = {
   lastUpdated: null,
   refreshTimer: null,
   agoTimer: null,
+  alertsLocKey: null,
+  alertKeys: null,
 };
 
 // ---------- DOM references ----------
@@ -121,7 +123,8 @@ const el = {
   currentDesc: document.getElementById("current-desc"),
   currentFeels: document.getElementById("current-feels"),
   currentHumidity: document.getElementById("current-humidity"),
-  currentWind: document.getElementById("current-wind"),
+  windText: document.getElementById("wind-text"),
+  windArrow: document.getElementById("wind-arrow"),
   currentPrecip: document.getElementById("current-precip"),
   currentSunrise: document.getElementById("current-sunrise"),
   currentSunset: document.getElementById("current-sunset"),
@@ -159,6 +162,12 @@ function windUnit() {
 
 function precipUnit() {
   return state.unit === "fahrenheit" ? "in" : "mm";
+}
+
+// Compass point the wind blows FROM (meteorological convention).
+function compassDir(degrees) {
+  const points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return points[Math.round(degrees / 45) % 8];
 }
 
 function formatLocation(loc) {
@@ -296,7 +305,7 @@ async function fetchForecast(latitude, longitude) {
     latitude,
     longitude,
     current:
-      "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m",
+      "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m,wind_direction_10m",
     hourly: "temperature_2m,weather_code,precipitation_probability,is_day",
     daily:
       "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset",
@@ -438,6 +447,19 @@ async function loadAlerts(location) {
   try {
     const alerts = await fetchAlerts(location);
     if (state.location !== location) return; // user moved on mid-fetch
+    // Chime softly when a NEW alert appears while watching this place.
+    const locKey = `${location.latitude},${location.longitude}`;
+    const keys = new Set((alerts || []).map((a) => `${a.title}|${a.until}`));
+    if (state.alertsLocKey === locKey && state.alertKeys) {
+      for (const key of keys) {
+        if (!state.alertKeys.has(key)) {
+          Sound.bell();
+          break;
+        }
+      }
+    }
+    state.alertsLocKey = locKey;
+    state.alertKeys = keys;
     renderAlerts(alerts);
   } catch (error) {
     console.error(error);
@@ -464,7 +486,15 @@ function renderCurrent(data, location) {
   el.currentDesc.textContent = info.desc;
   el.currentFeels.textContent = `${Math.round(current.apparent_temperature)}${unitSymbol()}`;
   el.currentHumidity.textContent = `${current.relative_humidity_2m}%`;
-  el.currentWind.textContent = `${Math.round(current.wind_speed_10m)} ${windUnit()}`;
+  const dir = current.wind_direction_10m;
+  el.windText.textContent =
+    `${Math.round(current.wind_speed_10m)} ${windUnit()}` +
+    (dir == null ? "" : ` ${compassDir(dir)}`);
+  el.windArrow.hidden = dir == null;
+  if (dir != null) {
+    // Arrow points where the wind is blowing TO.
+    el.windArrow.style.transform = `rotate(${(dir + 180) % 360}deg)`;
+  }
   el.currentPrecip.textContent = `${current.precipitation} ${precipUnit()}`;
   el.currentSunrise.textContent = formatTime(daily.sunrise[0]);
   el.currentSunset.textContent = formatTime(daily.sunset[0]);

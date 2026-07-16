@@ -43,17 +43,30 @@ const Background = (function () {
 
   // ---------- Setup ----------
 
+  let lastW = 0;
+  let lastH = 0;
+
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    width = window.innerWidth;
-    height = window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // Mobile browsers fire resize when the URL bar hides/shows while
+    // scrolling; only regenerate the scene on a real size change.
+    const regenerate =
+      stars.length === 0 || Math.abs(w - lastW) > 2 || Math.abs(h - lastH) > lastH * 0.25;
+    lastW = w;
+    lastH = h;
+    width = w;
+    height = h;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     canvas.style.width = width + "px";
     canvas.style.height = height + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    makeStars();
-    makeParticles();
+    if (regenerate) {
+      makeStars();
+      makeParticles();
+    }
     if (reducedMotion) drawStatic();
   }
 
