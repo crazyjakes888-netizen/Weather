@@ -435,6 +435,66 @@ body {
   color: var(--text-muted);
 }
 
+/* ---------- Weather alerts ---------- */
+
+.alerts__empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.alert {
+  padding: 0.6rem 0.85rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 8px;
+}
+
+.alert + .alert {
+  margin-top: 0.5rem;
+}
+
+.alert--severe {
+  border-left-color: #f87171;
+}
+
+.alert--moderate {
+  border-left-color: #fbbf24;
+}
+
+.alert__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.alert__severity {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.alert__until {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.alert details summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin-top: 0.25rem;
+}
+
+.alert__desc {
+  white-space: pre-wrap;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
 /* ---------- Current conditions ---------- */
 
 .current__top {

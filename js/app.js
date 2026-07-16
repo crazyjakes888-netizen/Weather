@@ -16,6 +16,8 @@ const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 const REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-client";
 const IP_LOCATE_URL = "https://ipwho.is/";
+const NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"; // United States
+const EC_ALERTS_URL = "https://api.weather.gc.ca/collections/alerts/items"; // Canada
 
 // How often the weather view re-fetches fresh data.
 const REFRESH_INTERVAL_MS = 60 * 1000;
@@ -104,6 +106,8 @@ const el = {
   results: document.getElementById("search-results"),
   unitToggle: document.getElementById("unit-toggle"),
   status: document.getElementById("status"),
+  alerts: document.getElementById("alerts"),
+  alertsList: document.getElementById("alerts-list"),
   current: document.getElementById("current"),
   hourly: document.getElementById("hourly"),
   daily: document.getElementById("daily"),
@@ -186,6 +190,7 @@ function setWeatherStatus(message) {
 }
 
 function showSections(visible) {
+  el.alerts.hidden = !visible;
   el.current.hidden = !visible;
   el.hourly.hidden = !visible;
   el.daily.hidden = !visible;
@@ -293,6 +298,142 @@ async function fetchForecast(latitude, longitude) {
   return fetchJson(`${FORECAST_URL}?${params}`);
 }
 
+// ---------- Weather alerts ----------
+
+const SEVERITY_RANK = { extreme: 0, severe: 1, moderate: 2, minor: 3 };
+
+async function fetchNwsAlerts(latitude, longitude) {
+  const data = await fetchJson(`${NWS_ALERTS_URL}?point=${latitude},${longitude}`);
+  return (data.features || []).map((f) => {
+    const p = f.properties || {};
+    return {
+      title: p.event || p.headline || "Weather alert",
+      severity: p.severity || "",
+      description: p.description || "",
+      until: p.ends || p.expires || "",
+    };
+  });
+}
+
+async function fetchEcAlerts(latitude, longitude) {
+  const d = 0.1;
+  const bbox = [longitude - d, latitude - d, longitude + d, latitude + d].join(",");
+  const data = await fetchJson(`${EC_ALERTS_URL}?f=json&lang=en&bbox=${bbox}`);
+  return (data.features || []).map((f) => {
+    const p = f.properties || {};
+    return {
+      title: p.headline || p.alert_type || "Weather alert",
+      severity: p.severity || "",
+      description: p.descrip || p.description || "",
+      until: p.expires || p.expiry || "",
+    };
+  });
+}
+
+// Returns a sorted alert list, or null when the region has no alert provider.
+async function fetchAlerts(location) {
+  const country = (location.country || "").toLowerCase();
+  const tasks = [];
+  if (!country || country.includes("united states")) {
+    tasks.push(fetchNwsAlerts(location.latitude, location.longitude));
+  }
+  if (!country || country.includes("canada")) {
+    tasks.push(fetchEcAlerts(location.latitude, location.longitude));
+  }
+  if (tasks.length === 0) return null;
+  const settled = await Promise.allSettled(tasks);
+  const alerts = settled.flatMap((s) => (s.status === "fulfilled" ? s.value : []));
+  // Dedupe identical alerts, then most severe first.
+  const seen = new Set();
+  const unique = alerts.filter((a) => {
+    const key = `${a.title}|${a.until}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return unique.sort(
+    (a, b) =>
+      (SEVERITY_RANK[(a.severity || "").toLowerCase()] ?? 4) -
+      (SEVERITY_RANK[(b.severity || "").toLowerCase()] ?? 4),
+  );
+}
+
+function severityClass(severity) {
+  const s = (severity || "").toLowerCase();
+  if (s === "extreme" || s === "severe") return "alert--severe";
+  if (s === "moderate") return "alert--moderate";
+  return "alert--minor";
+}
+
+// Built with DOM nodes (not innerHTML) since alert text is external data.
+function renderAlerts(alerts) {
+  el.alertsList.innerHTML = "";
+  if (alerts === null || alerts.length === 0) {
+    const p = document.createElement("p");
+    p.className = "alerts__empty";
+    p.textContent =
+      alerts === null
+        ? "Alerts aren't available for this region yet (US and Canada only for now)."
+        : "No active alerts for this area.";
+    el.alertsList.appendChild(p);
+    return;
+  }
+  for (const alert of alerts) {
+    const box = document.createElement("div");
+    box.className = `alert ${severityClass(alert.severity)}`;
+
+    const head = document.createElement("div");
+    head.className = "alert__head";
+    const title = document.createElement("strong");
+    title.textContent = alert.title;
+    head.appendChild(title);
+    if (alert.severity) {
+      const sev = document.createElement("span");
+      sev.className = "alert__severity";
+      sev.textContent = alert.severity;
+      head.appendChild(sev);
+    }
+    box.appendChild(head);
+
+    if (alert.until) {
+      const until = document.createElement("p");
+      until.className = "alert__until";
+      until.textContent = `Until ${new Date(alert.until).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })}`;
+      box.appendChild(until);
+    }
+
+    if (alert.description) {
+      const details = document.createElement("details");
+      const summary = document.createElement("summary");
+      summary.textContent = "Details";
+      const desc = document.createElement("p");
+      desc.className = "alert__desc";
+      desc.textContent = alert.description;
+      details.appendChild(summary);
+      details.appendChild(desc);
+      box.appendChild(details);
+    }
+
+    el.alertsList.appendChild(box);
+  }
+}
+
+async function loadAlerts(location) {
+  try {
+    const alerts = await fetchAlerts(location);
+    if (state.location !== location) return; // user moved on mid-fetch
+    renderAlerts(alerts);
+  } catch (error) {
+    console.error(error);
+    if (state.location === location) renderAlerts([]);
+  }
+}
+
 // ---------- Rendering ----------
 
 function renderCurrent(data, location) {
@@ -374,6 +515,7 @@ async function loadWeather(location, { silent = false } = {}) {
     renderCurrent(data, location);
     renderHourly(data);
     renderDaily(data);
+    loadAlerts(location);
     Background.setWeather(
       backgroundForWeather(data.current.weather_code, data.current.is_day),
     );
