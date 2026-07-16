@@ -20,6 +20,27 @@ const IP_LOCATE_URL = "https://ipwho.is/";
 // How often the weather view re-fetches fresh data.
 const REFRESH_INTERVAL_MS = 60 * 1000;
 
+// How often the homepage city ticker refreshes.
+const TICKER_REFRESH_MS = 5 * 60 * 1000;
+
+// Major cities shown in the homepage ticker.
+const TICKER_CITIES = [
+  { name: "New York", country: "United States", latitude: 40.71, longitude: -74.01 },
+  { name: "London", country: "United Kingdom", latitude: 51.51, longitude: -0.13 },
+  { name: "Tokyo", country: "Japan", latitude: 35.68, longitude: 139.69 },
+  { name: "Paris", country: "France", latitude: 48.85, longitude: 2.35 },
+  { name: "Sydney", country: "Australia", latitude: -33.87, longitude: 151.21 },
+  { name: "Toronto", country: "Canada", latitude: 43.65, longitude: -79.38 },
+  { name: "Los Angeles", country: "United States", latitude: 34.05, longitude: -118.24 },
+  { name: "Dubai", country: "United Arab Emirates", latitude: 25.2, longitude: 55.27 },
+  { name: "Singapore", country: "Singapore", latitude: 1.35, longitude: 103.82 },
+  { name: "Berlin", country: "Germany", latitude: 52.52, longitude: 13.41 },
+  { name: "Mumbai", country: "India", latitude: 19.08, longitude: 72.88 },
+  { name: "São Paulo", country: "Brazil", latitude: -23.55, longitude: -46.63 },
+  { name: "Cairo", country: "Egypt", latitude: 30.04, longitude: 31.24 },
+  { name: "Mexico City", country: "Mexico", latitude: 19.43, longitude: -99.13 },
+];
+
 // WMO weather interpretation codes -> description + icon name (see icons.js)
 const WEATHER_CODES = {
   0: { desc: "Clear sky", icon: "sun", nightIcon: "moon" },
@@ -67,6 +88,8 @@ const state = {
 const el = {
   homeView: document.getElementById("home-view"),
   weatherView: document.getElementById("weather-view"),
+  ticker: document.getElementById("ticker"),
+  tickerTrack: document.getElementById("ticker-track"),
   homeForm: document.getElementById("home-form"),
   homeInput: document.getElementById("home-input"),
   homeResults: document.getElementById("home-results"),
@@ -370,6 +393,49 @@ async function loadWeather(location, { silent = false } = {}) {
   }
 }
 
+// ---------- Major-cities ticker ----------
+
+// One batched Open-Meteo call fetches current weather for every ticker city.
+async function loadTicker() {
+  try {
+    const params = new URLSearchParams({
+      latitude: TICKER_CITIES.map((c) => c.latitude).join(","),
+      longitude: TICKER_CITIES.map((c) => c.longitude).join(","),
+      current: "temperature_2m,weather_code,is_day",
+      temperature_unit: state.unit,
+    });
+    const data = await fetchJson(`${FORECAST_URL}?${params}`);
+    renderTicker(Array.isArray(data) ? data : [data]);
+  } catch (error) {
+    // Ticker is decorative — leave it hidden if the lookup fails.
+    console.error(error);
+  }
+}
+
+function renderTicker(results) {
+  el.tickerTrack.innerHTML = "";
+  // Two identical copies make the marquee loop seamless.
+  for (let copy = 0; copy < 2; copy++) {
+    TICKER_CITIES.forEach((city, i) => {
+      const current = results[i] && results[i].current;
+      if (!current) return;
+      const info = weatherInfo(current.weather_code, current.is_day);
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "ticker__item";
+      chip.setAttribute("aria-label", `${city.name}: ${info.desc}`);
+      chip.innerHTML = `
+        <span>${city.name}</span>
+        ${WeatherIcons.iconSvg(info.icon)}
+        <span class="ticker__temp">${Math.round(current.temperature_2m)}°</span>
+      `;
+      chip.addEventListener("click", () => loadWeather(city));
+      el.tickerTrack.appendChild(chip);
+    });
+  }
+  el.ticker.hidden = el.tickerTrack.childElementCount === 0;
+}
+
 // ---------- Search (shared by home + weather header) ----------
 
 function setupSearch({ form, input, results }, showStatus) {
@@ -515,6 +581,7 @@ function handleUnitToggle() {
   localStorage.setItem("weather-unit", state.unit);
   updateUnitToggle();
   if (state.location) loadWeather(state.location, { silent: true });
+  loadTicker();
 }
 
 function updateUnitToggle() {
@@ -553,6 +620,8 @@ function init() {
   updateUnitToggle();
   showView("home");
   maybeAskLocation();
+  loadTicker();
+  setInterval(loadTicker, TICKER_REFRESH_MS);
 }
 
 init();
