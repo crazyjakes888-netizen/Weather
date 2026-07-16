@@ -1,13 +1,20 @@
 /* ============================================
-   Ambient sound engine (Web Audio, no files).
-   - Soft bedtime-style synth pad, very subtle
-   - Rain noise layered in during rain scenes
-   - Thunder rumble triggered by lightning
+   Ambient sound engine.
+   Plays pre-rendered audio loops (assets/audio)
+   through Web Audio for seamless looping:
+   - ambient.mp3: calm bedtime-style music pad
+   - rain.mp3: rainfall, layered in during rain
+   Thunder and the alert bell are synthesized.
+   If the files fail to load/decode, a simple
+   synth pad + noise rain take their place.
    Browsers only allow audio after a user
    gesture, so playback starts on first tap.
    ============================================ */
 
 const Sound = (function () {
+  const AMBIENT_URL = "assets/audio/ambient.mp3";
+  const RAIN_URL = "assets/audio/rain.mp3";
+
   let ctx = null;
   let master = null;
   let ambientGain = null;
@@ -15,8 +22,9 @@ const Sound = (function () {
   let started = false;
   let enabled = localStorage.getItem("weather-sound") !== "off";
   let scene = { rain: 0, thunder: false };
+  const sources = { ambient: "none", rain: "none" };
 
-  const AMBIENT_LEVEL = 0.9;
+  const AMBIENT_LEVEL = 0.45;
 
   function ensure() {
     if (ctx) return;
@@ -26,20 +34,47 @@ const Sound = (function () {
     master = ctx.createGain();
     master.gain.value = 0.6;
     master.connect(ctx.destination);
-    buildAmbient();
-    buildRain();
-  }
-
-  // Warm A-major pad with slow, phase-offset "breathing" per voice.
-  function buildAmbient() {
     ambientGain = ctx.createGain();
     ambientGain.gain.value = 0;
+    ambientGain.connect(master);
+    rainGain = ctx.createGain();
+    rainGain.gain.value = 0;
+    rainGain.connect(master);
+
+    loadLoop(AMBIENT_URL, ambientGain).then(
+      () => (sources.ambient = "file"),
+      () => {
+        sources.ambient = "synth";
+        buildSynthPad();
+      },
+    );
+    loadLoop(RAIN_URL, rainGain).then(
+      () => (sources.rain = "file"),
+      () => {
+        sources.rain = "synth";
+        buildSynthRain();
+      },
+    );
+  }
+
+  async function loadLoop(url, gainNode) {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`audio fetch failed (${response.status})`);
+    const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    src.connect(gainNode);
+    src.start();
+  }
+
+  // ---------- Synth fallbacks (used only if the files can't play) ----------
+
+  function buildSynthPad() {
     const filter = ctx.createBiquadFilter();
     filter.type = "lowpass";
     filter.frequency.value = 900;
-    ambientGain.connect(filter);
-    filter.connect(master);
-
+    filter.connect(ambientGain);
     const notes = [110, 164.81, 220, 277.18]; // A2 E3 A3 C#4
     notes.forEach((freq, i) => {
       const osc = ctx.createOscillator();
@@ -47,15 +82,15 @@ const Sound = (function () {
       osc.frequency.value = freq;
       osc.detune.value = (i % 2 ? 1 : -1) * 3;
       const gain = ctx.createGain();
-      gain.gain.value = 0.05;
+      gain.gain.value = 0.12;
       const lfo = ctx.createOscillator();
       lfo.frequency.value = 0.05 + i * 0.023;
       const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.02;
+      lfoGain.gain.value = 0.04;
       lfo.connect(lfoGain);
       lfoGain.connect(gain.gain);
       osc.connect(gain);
-      gain.connect(ambientGain);
+      gain.connect(filter);
       osc.start();
       lfo.start();
     });
@@ -68,10 +103,7 @@ const Sound = (function () {
     return buffer;
   }
 
-  // Looped, band-passed noise — level set per scene (drizzle/rain/storm).
-  function buildRain() {
-    rainGain = ctx.createGain();
-    rainGain.gain.value = 0;
+  function buildSynthRain() {
     const src = ctx.createBufferSource();
     src.buffer = noiseBuffer(4);
     src.loop = true;
@@ -84,9 +116,10 @@ const Sound = (function () {
     src.connect(highpass);
     highpass.connect(lowpass);
     lowpass.connect(rainGain);
-    rainGain.connect(master);
     src.start();
   }
+
+  // ---------- Playback control ----------
 
   function apply() {
     if (!started || !ctx) return;
@@ -170,6 +203,10 @@ const Sound = (function () {
     return enabled;
   }
 
+  function status() {
+    return { started, enabled, ...sources };
+  }
+
   // Keep trying on every gesture until the context is actually running —
   // iOS in particular can ignore the first resume attempt.
   const GESTURES = ["pointerdown", "touchend", "click", "keydown"];
@@ -188,6 +225,6 @@ const Sound = (function () {
     }
   });
 
-  return { setScene, thunder, bell, toggle, isEnabled };
+  return { setScene, thunder, bell, toggle, isEnabled, status };
 })();
 window.Sound = Sound;
