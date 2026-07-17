@@ -18,6 +18,7 @@ const REVERSE_GEOCODE_URL = "https://api.bigdatacloud.net/data/reverse-geocode-c
 const IP_LOCATE_URL = "https://ipwho.is/";
 const NWS_ALERTS_URL = "https://api.weather.gov/alerts/active"; // United States
 const EC_ALERTS_URL = "https://api.weather.gc.ca/collections/alerts/items"; // Canada
+const AIR_QUALITY_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
 // How often the weather view re-fetches fresh data.
 const REFRESH_INTERVAL_MS = 7 * 1000;
@@ -124,6 +125,7 @@ const el = {
   currentDesc: document.getElementById("current-desc"),
   currentFeels: document.getElementById("current-feels"),
   currentHumidity: document.getElementById("current-humidity"),
+  currentAqi: document.getElementById("current-aqi"),
   windText: document.getElementById("wind-text"),
   windArrow: document.getElementById("wind-arrow"),
   currentPrecip: document.getElementById("current-precip"),
@@ -483,6 +485,43 @@ async function loadAlerts(location) {
   }
 }
 
+// ---------- Air quality ----------
+
+// US AQI bands -> simple label + color.
+function aqiInfo(aqi) {
+  if (aqi <= 50) return { label: "Good", color: "#4ade80" };
+  if (aqi <= 100) return { label: "Moderate", color: "#fbbf24" };
+  if (aqi <= 150) return { label: "Poor", color: "#fb923c" };
+  if (aqi <= 200) return { label: "Unhealthy", color: "#f87171" };
+  if (aqi <= 300) return { label: "Very unhealthy", color: "#c084fc" };
+  return { label: "Hazardous", color: "#ef4444" };
+}
+
+function renderAqi(aqi) {
+  if (aqi == null) {
+    el.currentAqi.textContent = "—";
+    return;
+  }
+  const info = aqiInfo(aqi);
+  el.currentAqi.innerHTML = `${Math.round(aqi)} <span class="aqi-label" style="color:${info.color}">${info.label}</span>`;
+}
+
+async function loadAirQuality(location) {
+  try {
+    const params = new URLSearchParams({
+      latitude: location.latitude,
+      longitude: location.longitude,
+      current: "us_aqi",
+    });
+    const data = await fetchJson(`${AIR_QUALITY_URL}?${params}`);
+    if (state.location !== location) return;
+    renderAqi(data.current ? data.current.us_aqi : null);
+  } catch (error) {
+    console.error(error);
+    if (state.location === location) renderAqi(null);
+  }
+}
+
 // ---------- Rendering ----------
 
 function renderCurrent(data, location) {
@@ -580,6 +619,7 @@ async function loadWeather(location, { silent = false, source = "user" } = {}) {
     ) {
       state.lastAlertsFetch = Date.now();
       loadAlerts(location);
+      loadAirQuality(location);
     }
     const bgMode = backgroundForWeather(data.current.weather_code, data.current.is_day);
     const twilight = isTwilight(data);
